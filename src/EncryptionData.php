@@ -38,7 +38,8 @@ class EncryptionData
         $fields = $prepare;
         $raw_response = $this->do_post_request($agent['url'], http_build_query($fields));
 
-        $response = json_decode($raw_response, true);
+        $response = json_decode($raw_response);
+
 
         if (config('encryptiondata.encode')) {
             $response = (array)$this->decodeData($response);
@@ -64,13 +65,20 @@ class EncryptionData
 
         global $php_errormsg;
 
-        $params = ['http' => [
-            'method' => 'POST',
-            'content' => $data
-        ]];
+        /*$params = [
+            'http' => [
+                'method' => 'POST',
+                'content' => $data
+            ],
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+            ]
+        ];
+
 
         if ($optional_headers !== null) {
-            $params['http']['header'] = $optional_headers;
+            $params['https']['header'] = $optional_headers;
         } else {
             $params['http']['header'] = "Content-Type: application/x-www-form-urlencoded\r\n".
                 "Content-Length: ".strlen($data)."\r\n".
@@ -79,19 +87,20 @@ class EncryptionData
 
         $ctx = stream_context_create($params);
         $fp = @fopen($url, 'rb', false, $ctx);
+*/
+        if( $curl = curl_init() ) {
+            curl_setopt ($curl, CURLOPT_URL, $url);
+            curl_setopt ($curl, CURLOPT_POST, 1);
+            curl_setopt ($curl, CURLOPT_POSTFIELDS, $data);
+            curl_setopt ($curl, CURLOPT_SSL_VERIFYPEER, FALSE);
+            curl_setopt ($curl, CURLOPT_RETURNTRANSFER, 1);
+            curl_setopt ($curl, CURLOPT_SSL_VERIFYHOST, 0);
 
-
-        if (!$fp) {
-            throw new ErrorException("Problem with $url, $php_errormsg");
+            $out = curl_exec($curl);
+            curl_close($curl);
         }
 
-        $response = @stream_get_contents($fp);
-       // echo $response; die;
-        if ($response === false) {
-            throw new ErrorException("Problem reading data from $url, $php_errormsg");
-        }
-
-        return $response;
+        return $out;
     }
 
 
@@ -127,6 +136,7 @@ class EncryptionData
      * May throw Exception
      */
     public function decodeData($response) {
+
         $response = (array) $response;
 
         if (count(array_diff(self::$required, array_keys($response))) > 0) {
